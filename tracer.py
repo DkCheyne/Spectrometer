@@ -17,7 +17,7 @@ class Object(ABC):
 class Spectrum:
     """Defines a particle spectrum with energy distribution."""
     def __init__(self, energy_min=1e6, energy_max=30e6, num_particles=1000, distribution='guassian', mean_angle = 0, 
-                 std_dev_angle = np.pi/18, angle_top_limit = np.pi/2, angle_bottom_limit = -np.pi/2): 
+                 std_dev_angle = np.pi/50, angle_top_limit = np.pi/2, angle_bottom_limit = -np.pi/2): 
         self.energy_min = energy_min
         self.energy_max = energy_max
         self.num_particles = num_particles
@@ -39,7 +39,7 @@ class Spectrum:
         # Relativistic speed: v = c * sqrt(1 - (m*c^2/(m*c^2 + E_J))^2)
         speed = c * np.sqrt(1 - (m * c**2 / (m * c**2 + E_J))**2)
         
-        std_dev = np.pi / 6  # Standard deviation of angle distribution
+        std_dev = np.pi / 500  # Standard deviation of angle distribution
         mean = 0.0  # Mean of angle distribution
         angle = np.random.normal(mean, std_dev)
         lower_bound = -np.pi / 2  # Minimum angle
@@ -114,29 +114,25 @@ class Particle:
         self.start_energy = start_energy
         self.start_velocity = np.array(start_velocity)
         self.current_velocity = np.array(start_velocity)
-        # Initialize position using a copy of the provided 'position'
+        self.mass = 1.67e-27  # mass of a proton (or update accordingly)
         self.position = np.copy(position)
         self.alive = True
         self.trajectory = [self.position.copy()]
         self.angle = angle  # Angle of particle trajectory
-        self.charge = 1.6e-19  # Charge of an electron in Coulombs
-    
-    def apply_force(self, force, dt=0.5e-9):
-        """Applies force while conserving energy."""
-        acceleration = force  # Assuming unit mass for simplicity
+        self.charge = 1.6e-19  # Charge in Coulombs
+
+    def apply_force(self, force, dt = 0.5e-9):
+        """Applies force using Newton's second law: v += (F/m) * dt."""
+        acceleration = force / self.mass
         self.current_velocity += acceleration * dt
+        # Optionally remove energy conservation correction.
+        # (If needed, energy conservation can be enforced separately.)
         
-        # Conserve energy
-        current_speed = np.linalg.norm(self.current_velocity)
-        initial_speed = np.linalg.norm(self.start_velocity)
-        if current_speed > 0:
-            self.current_velocity *= (initial_speed / current_speed)
-    
-    def update_position(self, dt=0.5e-9):
+    def update_position(self, dt = 0.5e-9):
         """Updates position based on velocity."""
         self.position += self.current_velocity * dt
         self.trajectory.append(self.position.copy())
-
+        
     def get_trajectory(self):
         """Returns the recorded trajectory of the particle."""
         return np.array(self.trajectory)
@@ -217,7 +213,7 @@ class Scene:
             particles = obj.generate_particles()
             self.particles.extend(particles)
 
-    def run_simulation(self, num_steps=1000, dt=0.5e-9):
+    def run_simulation(self, num_steps=1000, dt = 0.5e-9):
         for _ in range(num_steps):
             for obj in self.objects:
                 for particle in self.particles:
@@ -320,7 +316,7 @@ class Scene:
 
         self.particles = source.generate_particles()
 
-        self.run_simulation(num_steps=1000, dt=0.5e-9)
+        self.run_simulation(num_steps=1000, dt = 0.5e-9)
 
         """Plots the scene with particle trajectories, objects, and magnetic field streamlines."""
         plt.figure(figsize=(8, 6))
@@ -363,7 +359,7 @@ class Scene:
                         U[i, j] += B[0]
                         V[i, j] += B[1]
         
-        plt.streamplot(X, Y, U, V, color='blue', density=1.0, linewidth=1, arrowsize=1.5)
+        plt.streamplot(X, Y, U, V, color=(0.2,0.4, 1, 0.5), density=1.0, linewidth=1, arrowsize=1.5)
         
         plt.xlabel("X Position")
         plt.ylabel("Y Position")
@@ -376,15 +372,15 @@ class Scene:
 # Define the scence objects
 upperBlock = MagneticBlock(
     position=[0, 1, 0],           # Centered at (0, 1, 0) in cm
-    dimensions=[2, 0.5, 0.5],     # 2 cm long, 0.5 cm tall, assuming 0.5 cm depth
-    polarization=[0, 0.5, 0],      # Y-axis polarization with 0.5T strength
+    dimensions=[0.1, 0.5, 0.5],     # 2 cm long, 0.5 cm tall, assuming 0.5 cm depth
+    polarization=[0, 0, 10],      # Y-axis polarization with 0.5T strength
     name = "upperBlock"
 )
 
 lowerBlock = MagneticBlock(
     position=[0, -1, 0],          # Centered at (0, -1, 0) in cm
-    dimensions=[2, 0.5, 0.5],     # 2 cm long, 0.5 cm tall, assuming 0.5 cm depth
-    polarization=[0, 0.5, 0],    # Y-axis polarization with 0.5T strength
+    dimensions=[0.1, 0.5, 0.5],     # 2 cm long, 0.5 cm tall, assuming 0.5 cm depth
+    polarization=[0, 0, 10],    # Y-axis polarization with 0.5T strength
     name = "lowerBlock"
 )
 
