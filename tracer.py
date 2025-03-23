@@ -203,10 +203,10 @@ class Scene:
         self.objects = []
         self.particles = []
         self.dt = 0.5e-9  # Timestep in seconds
-        self.x_min, self.x_max = -0.005, 0.005
-        self.y_min, self.y_max = -0.005, 0.005
-        self.z_min, self.z_max = -0.005, 0.005
-        self.resolution = 50
+        self.x_min, self.x_max = -0.01, 0.01
+        self.y_min, self.y_max = -0.01, 0.01
+        self.z_min, self.z_max = -0.01, 0.01
+        self.resolution = 100
     
     def add_object(self, obj):
         self.objects.append(obj)
@@ -291,18 +291,19 @@ class Scene:
     def visualize_pyvista(self):
         """Visualizes the magnetic field using PyVista."""
         grid = pv.ImageData(
-            dimensions=(100, 100, 100),
-            spacing=(0.005, 0.005, 0.005),
-            origin = (0.01, 0.01, 0.01)
+            dimensions=(41, 41, 41),
+            spacing=(0.001, 0.001, 0.001),
+            origin = (-0.02, -0.02, -0.02)
         )
 
       
-        grid["B"] = self.magnet.getB(grid.points)
+        grid["B"] = self.magnet.getB(grid.points) * 1000
 
         #start = np.array([-1, -0, -1])
         #end = np.array([-1, 0, -1])
         #seeds = np.linspace(start, end, 10)
-        seeds = pv.Disc(inner=0.1, outer=0.003, r_res=1, c_res=9)
+        seeds = pv.Disc(inner=0.001, outer=0.003, r_res=3, c_res=9)
+        test = pv.Cylinder(center=[0, 0, 0])
         streamlines = grid.streamlines_from_source(
             seeds,
             vectors = "B",
@@ -325,12 +326,12 @@ class Scene:
 
         pv.global_theme.allow_empty_mesh = True
 
-        # Add streamlines and legend to scene
-        #pl.add_mesh(
-        #    streamlines.tube(radius=0.0002),
-        #    cmap="bwr",
-        #    scalar_bar_args=legend_args,
-        #)
+        #Add streamlines and legend to scene
+        pl.add_mesh(
+            streamlines.tube(radius=0.0001),
+            cmap="bwr",
+            scalar_bar_args=legend_args,
+        )
 
 
 
@@ -432,16 +433,16 @@ class Scene:
 
 # Define the scence objects
 upperBlock = MagneticBlock(
-    position=[0, 1, 0],           # Centered at (0, 1, 0) in cm
-    dimensions=[0.001, 0.005, 0.005],     # 2 cm long, 0.5 cm tall, assuming 0.5 cm depth
-    polarization=[0, 0, 10],      # Y-axis polarization with 0.5T strength
+    position=[0, 0.01, 0],           # Centered at (0, 1, 0) in cm
+    dimensions=[0.005, 0.001, 0.005],     # 2 cm long, 0.5 cm tall, assuming 0.5 cm depth
+    polarization=[0, 1, 0],      # Y-axis polarization with 0.5T strength
     name = "upperBlock"
 )
 
 lowerBlock = MagneticBlock(
-    position=[0, -1, 0],          # Centered at (0, -1, 0) in cm
-    dimensions=[0.001, 0.005, 0.005],     # 2 cm long, 0.5 cm tall, assuming 0.5 cm depth
-    polarization=[0, 0, 10],    # Y-axis polarization with 0.5T strength
+    position=[0, -0.01, 0],          # Centered at (0, -1, 0) in cm
+    dimensions=[0.005, 0.001, 0.005],     # 2 cm long, 0.5 cm tall, assuming 0.5 cm depth
+    polarization=[0, 1, 0],    # Y-axis polarization with 0.5T strength
     name = "lowerBlock"
 )
 
