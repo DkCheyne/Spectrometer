@@ -207,6 +207,7 @@ class Scene:
         self.y_min, self.y_max = -0.01, 0.01
         self.z_min, self.z_max = -0.01, 0.01
         self.resolution = 100
+        self.sim_ran = False 
     
     def add_object(self, obj):
         self.objects.append(obj)
@@ -224,6 +225,7 @@ class Scene:
                 self.magnet = magpy.Collection([self.magnet, obj.magnet])
 
     def run_simulation(self, num_steps=1000, dt = 0.5e-9):
+
         for _ in range(num_steps):
             for obj in self.objects:
                 for particle in self.particles:
@@ -235,87 +237,47 @@ class Scene:
                         particle.update_position(dt)
                         if particle.position[0] < self.x_min or particle.position[0] > self.x_max or particle.position[1] < self.y_min or particle.position[1] > self.y_max:
                             particle.alive = False
-
-    def visualize_objects(self): 
-        """Plots the scene with particle trajectories, objects, and overlays magnetic field streamlines."""
-        plt.figure(figsize=(8, 6))
-        
-        # First plot the streamlines for MagneticBlock contributions
-        resolution = 50
-        x = np.linspace(self.x_min, self.x_max, resolution)
-        y = np.linspace(self.y_min, self.y_max, resolution)
-        X, Y = np.meshgrid(x, y)
-        U = np.zeros_like(X, dtype=float)
-        V = np.zeros_like(Y, dtype=float)
-        
-        # Sum contributions from all MagneticBlock objects
-        for obj in self.objects:
-            if isinstance(obj, MagneticBlock):
-                for i in range(X.shape[0]):
-                    for j in range(X.shape[1]):
-                        # Get the local magnetic field vector at (x,y,z)
-                        B = obj.magnet.getB([X[i, j], Y[i, j], z])
-                        U[i, j] += B[0]
-                        V[i, j] += B[1]
-        
-        # Plot objects after the streamlines so they overlay on top
-        for obj in self.objects:
-            if isinstance(obj, Source):
-                plt.scatter(obj.position[0], obj.position[1], marker='*', color='red', s=100, label='Source')
-            elif isinstance(obj, Aperture):
-                plt.scatter(obj.position[0], obj.position[1], marker='o', color='green', s=100, label='Aperture')
-            elif isinstance(obj, MagneticBlock):
-                x_obj, y_obj = obj.magnet.position[:2]
-                w, h = obj.magnet.dimension[:2]
-                rect = plt.Rectangle((x_obj - w/2, y_obj - h/2), w, h, color='blue', alpha=0.5, label=obj.name)
-                plt.gca().add_patch(rect)
-            elif isinstance(obj, Detector):
-                plt.scatter(obj.position[0], obj.position[1], marker='^', color='purple', s=100, label='Detector')
-        
-        # Plot particle trajectories (if needed; this block can be uncommented/modified)
-        #for particle in self.particles:
-        #    trajectory = particle.get_trajectory()
-        #    plt.plot(trajectory[:, 0], trajectory[:, 1], label=f'Particle {particle.id}')
-        
-        plt.xlabel("X Position")
-        plt.ylabel("Y Position")
-        plt.title("Scene with Magnetic Field Streamlines Overlay")
-        plt.legend()
-        plt.grid()
-        plt.show()
-
-    def visualize_source(self, num_particles=10):
-        visualize_source(source, num_particles)
+        self.sim_ran = True 
 
 
-    def visualize_pyvista(self):
+    def visualize_pyvista_fieldlines(self, return_pl = False):
         """Visualizes the magnetic field using PyVista."""
         grid = pv.ImageData(
             dimensions=(41, 41, 41),
             spacing=(0.001, 0.001, 0.001),
             origin = (-0.02, -0.02, -0.02)
         )
-
-      
+        #TODO: FIX THIS HACK
         grid["B"] = self.magnet.getB(grid.points) * 1000
 
-        #start = np.array([-1, -0, -1])
-        #end = np.array([-1, 0, -1])
-        #seeds = np.linspace(start, end, 10)
-        seeds = pv.Disc(inner=0.001, outer=0.003, r_res=3, c_res=9)
-        test = pv.Cylinder(center=[0, 0, 0])
-        streamlines = grid.streamlines_from_source(
-            seeds,
-            vectors = "B",
-            max_step_length = 0.1,
-            max_time = 0.02,
-            integration_direction = "both"
+        #TODO: Make NOT DUMB
+        seed1 = pv.Disc(inner=0.001, outer=0.006, r_res=3, c_res=6, center=[-0.004, 0, 0], normal = [-1.0, 0.0, 0.0])
+        seed2 = pv.Disc(inner=0.001, outer=0.006, r_res=3, c_res=6, center=[-0.0, 0, 0], normal = [-1.0, 0.0, 0.0])
+        seed3 = pv.Disc(inner=0.001, outer=0.006, r_res=3, c_res=6, center=[0.004, 0, 0], normal = [-1.0, 0.0, 0.0])
+        seed4 = pv.Disc(inner=0.001, outer=0.006, r_res=3, c_res=6, center=[0.012, 0, 0], normal = [-1.0, 0.0, 0.0])
+        seed5 = pv.Disc(inner=0.001, outer=0.006, r_res=3, c_res=6, center=[-0.012, 0, 0], normal = [-1.0, 0.0, 0.0])
+
+        # Seed Collection
+        seeds = [seed1, seed2, seed3, seed4, seed5]
+
+        steamlines = {}
+
+        # Yeah this is just going back to some random fortran library....
+        # Not sure if this is in pyvista or magpylib
+        # It is niave 
+        for i, seed in enumerate(seeds): 
+            streamline = grid.streamlines_from_source(
+                seed,
+                vectors = "B",
+                max_step_length = 0.1,
+                max_time = 0.02,
+                integration_direction = "both"
             )
-        
+            steamlines[i] = streamline
+
         pl = pv.Plotter()
 
-        magpy.show(self.magnet, canvas=pl, units_length="m", backend="pyvista")
-
+        #TODO GET THE LEGEND WORKING
         legend_args = {
             "title": "B (mT)",
             "title_font_size": 20,
@@ -324,54 +286,46 @@ class Scene:
             "vertical": True,
         }
 
-        pv.global_theme.allow_empty_mesh = True
+        # Add Magnets
+        magpy.show(self.magnet, canvas=pl, units_length="m", backend="pyvista", scalar_bar_args=legend_args)
 
-        #Add streamlines and legend to scene
-        pl.add_mesh(
-            streamlines.tube(radius=0.0001),
-            cmap="bwr",
-            scalar_bar_args=legend_args,
-        )
+        # Add Steamlines
+        for i, steamline in enumerate(steamlines.values()):
+            tube = steamline.tube(radius=0.0001)
+            if i == 0:
+                pl.add_mesh(tube, cmap="bwr", show_scalar_bar=False)
+            else:
+                pl.add_mesh(tube, cmap="bwr", show_scalar_bar=False)
 
+        # Add Seed Locations
+        for seed in seeds:
+            pl.add_mesh(seed, show_edges=True, opacity=0.5)
 
+        # If return return pl scene
+        if return_pl:
+            return pl
+        else:
+            # Prepare and show scene
+            pl.camera.position = (0.03, 0.03, 0.03)
+            pl.show()
 
-        # Prepare and show scene
-        pl.camera.position = (0.03, 0.03, 0.03)
-        pl.show()
-
-
-    ###TODO: Implement the following methods
-    def visualize_magnetic_fieldlines(self):
-        pass
-
-
-    def visualize_magnetic_field(self, resolution=50, z=0):
-        """Visualizes the combined magnetic field from all MagneticBlock objects in the scene."""
-        x = 0
-        y = np.linspace(self.y_min, self.y_max, self.resolution)
-        z = np.linspace(self.z_min, self.z_max, self.resolution)
-        Z, Y = np.meshgrid(z, y)
-        U = np.zeros_like(Z, dtype=float)
-        V = np.zeros_like(Y, dtype=float)
         
-            # Sum contributions from all MagneticBlock objects
-        for obj in self.objects:
-            if isinstance(obj, MagneticBlock):
-                for i in range(Z.shape[0]):
-                    for j in range(Z.shape[1]):
-                        # Get the local magnetic field vector at (x,y,z)
-                        B = obj.magnet.getB([x, Y[i, j], Z[i, j]])
-                        U[i, j] += B[0]
-                        V[i, j] += B[1]
-        
-        plt.figure(figsize=(8, 6))
-        plt.streamplot(Z, Y, U, V, color='blue', density=1.0, linewidth=1, arrowsize=1.5, alpha = 0.5)
-        plt.xlabel("Z Position")
-        plt.ylabel("Y Position")
-        plt.title("Magnetic Field Streamlines from Magnetic Blocks")
-        plt.grid()
-        plt.show()
     
+    def visualize_particles_pyvista(self, pl = False):
+        """Visualizes the particle trajectories using PyVista."""
+
+        if self.sim_ran == False:
+            self.run_simulation(num_steps=1000, dt = 0.5e-9)
+        
+        if pl == False:
+            pl = pv.Plotter()
+
+        for particle in self.particles:
+            trajectory = particle.get_trajectory()
+            pl.add_lines(trajectory, width=5, color="black")
+
+        pl.show()
+        
 
     def visualize_particles(self):
 
@@ -401,27 +355,6 @@ class Scene:
                 plt.gca().add_patch(rect)
             elif isinstance(obj, Detector):
                 plt.scatter(obj.position[0], obj.position[1], marker='^', color='purple', s=100, label='Detector')
-
-
-        # Create grid over scene region
-        x = 0
-        y = np.linspace(self.y_min, self.y_max, self.resolution)
-        z = np.linspace(self.z_min, self.z_max, self.resolution)
-        Z, Y = np.meshgrid(z, y)
-        U = np.zeros_like(Z, dtype=float)
-        V = np.zeros_like(Y, dtype=float)
-        
-            # Sum contributions from all MagneticBlock objects
-        for obj in self.objects:
-            if isinstance(obj, MagneticBlock):
-                for i in range(Z.shape[0]):
-                    for j in range(Z.shape[1]):
-                        # Get the local magnetic field vector at (x,y,z)
-                        B = obj.magnet.getB([x, Y[i, j], Z[i,j]])
-                        U[i, j] += B[2]
-                        V[i, j] += B[1]
-        
-        plt.streamplot(Z, Y, U, V, color=(0.2,0.4, 1, 0.5), density=1.0, linewidth=1, arrowsize=1.5)
         
         plt.xlabel("X Position")
         plt.ylabel("Y Position")
@@ -434,15 +367,15 @@ class Scene:
 # Define the scence objects
 upperBlock = MagneticBlock(
     position=[0, 0.01, 0],           # Centered at (0, 1, 0) in cm
-    dimensions=[0.005, 0.001, 0.005],     # 2 cm long, 0.5 cm tall, assuming 0.5 cm depth
+    dimensions=[0.01, 0.001, 0.005],     # 2 cm long, 0.5 cm tall, assuming 0.5 cm depth
     polarization=[0, 1, 0],      # Y-axis polarization with 0.5T strength
     name = "upperBlock"
 )
 
 lowerBlock = MagneticBlock(
     position=[0, -0.01, 0],          # Centered at (0, -1, 0) in cm
-    dimensions=[0.005, 0.001, 0.005],     # 2 cm long, 0.5 cm tall, assuming 0.5 cm depth
-    polarization=[0, 1, 0],    # Y-axis polarization with 0.5T strength
+    dimensions=[0.01, 0.001, 0.005],     # 2 cm long, 0.5 cm tall, assuming 0.5 cm depth
+    polarization=[0, -1, 0],    # Y-axis polarization with 0.5T strength
     name = "lowerBlock"
 )
 
@@ -460,4 +393,5 @@ scene.add_object(lowerBlock)
 #scene.visualize_objects()
 #scene.visualize_magnetic_field()
 #scene.visualize_particles()
-scene.visualize_pyvista()
+pl = scene.visualize_pyvista_fieldlines(True)
+scene.visualize_particles_pyvista()
